@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FormShare — URI-based form builder</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #f5f4f0;
+      --surface: #ffffff;
+      --surface2: #f0eeea;
+      --border: #e2dfd8;
+      --border2: #ccc9c0;
+      --text: #1a1916;
+      --text2: #6b6860;
+      --text3: #9e9b94;
+      --accent: #2a5cff;
+      --accent-light: #eef1ff;
+      --accent-border: #b8c5ff;
+      --success: #1a7f5a;
+      --success-light: #eaf7f1;
+      --danger: #c0392b;
+      --radius: 10px;
+      --radius-lg: 16px;
+      --shadow: 0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.05);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #111110;
+        --surface: #1c1c1a;
+        --surface2: #242422;
+        --border: #2e2e2b;
+        --border2: #3d3d39;
+        --text: #f0ede8;
+        --text2: #9e9b94;
+        --text3: #5c5a55;
+        --accent: #6b8fff;
+        --accent-light: #1a2040;
+        --accent-border: #2d3f80;
+        --success: #2ecc8f;
+        --success-light: #0d2a1f;
+      }
+    }
+
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      padding: 1.25rem 2rem;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .logo {
+      font-size: 17px;
+      font-weight: 600;
+      letter-spacing: -0.3px;
+      color: var(--text);
+    }
+
+    .logo span {
+      color: var(--accent);
+    }
+
+    .badge {
+      font-size: 11px;
+      font-family: 'DM Mono', monospace;
+      background: var(--accent-light);
+      color: var(--accent);
+      border: 1px solid var(--accent-border);
+      border-radius: 999px;
+      padding: 2px 8px;
+    }
+
+    main {
+      flex: 1;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 2.5rem 1rem;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      width: 100%;
+      max-width: 560px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .tabs {
+      display: flex;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface2);
+    }
+
+    .tab {
+      flex: 1;
+      padding: 13px 10px;
+      font-size: 13px;
+      font-weight: 500;
+      font-family: 'DM Sans', sans-serif;
+      color: var(--text2);
+      background: none;
+      border: none;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: all 0.15s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+
+    .tab:hover { color: var(--text); background: var(--border); }
+    .tab.active { color: var(--accent); border-bottom-color: var(--accent); background: var(--surface); }
+
+    .tab svg { width: 15px; height: 15px; }
+
+    .pane { padding: 1.75rem; display: none; }
+    .pane.active { display: block; }
+
+    .field-group { margin-bottom: 1.25rem; }
+    label.field-label {
+      display: block;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text2);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 6px;
+    }
+
+    input[type=text], input[type=email], input[type=number], input[type=date], textarea, select {
+      width: 100%;
+      padding: 9px 12px;
+      font-size: 14px;
+      font-family: 'DM Sans', sans-serif;
+      color: var(--text);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      outline: none;
+      transition: border-color 0.15s, box-shadow 0.15s;
+      appearance: none;
+    }
+
+    input:focus, textarea:focus, select:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(42, 92, 255, 0.1);
+    }
+
+    textarea { resize: vertical; min-height: 80px; line-height: 1.5; }
+
+    .field-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 8px 10px;
+      margin-bottom: 8px;
+    }
+
+    .field-row input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      box-shadow: none;
+      padding: 4px 6px;
+      font-size: 14px;
+    }
+
+    .field-row input:focus { box-shadow: none; border: none; }
+
+    .type-select {
+      width: auto;
+      padding: 4px 8px;
+      font-size: 12px;
+      background: var(--surface);
+      border-color: var(--border2);
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    .icon-btn {
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: var(--text3);
+      padding: 4px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      transition: color 0.15s, background 0.15s;
+    }
+
+    .icon-btn:hover { color: var(--danger); background: #fff0ee; }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 9px 16px;
+      font-size: 13px;
+      font-weight: 500;
+      font-family: 'DM Sans', sans-serif;
+      border-radius: var(--radius);
+      cursor: pointer;
+      transition: all 0.15s;
+      border: 1px solid var(--border2);
+      background: var(--surface);
+      color: var(--text);
+    }
+
+    .btn:hover { background: var(--surface2); }
+    .btn:active { transform: scale(0.98); }
+
+    .btn-accent {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+
+    .btn-accent:hover { opacity: 0.88; background: var(--accent); }
+
+    .btn-success {
+      background: var(--success-light);
+      border-color: var(--success);
+      color: var(--success);
+    }
+
+    .btn-success:hover { opacity: 0.85; }
+
+    .btn-full { width: 100%; justify-content: center; }
+
+    .btn-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 1rem;
+    }
+
+    .btn-row .btn { flex: 1; justify-content: center; }
+
+    .url-box {
+      margin-top: 1rem;
+      padding: 10px 12px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      font-family: 'DM Mono', monospace;
+      font-size: 11px;
+      color: var(--text2);
+      word-break: break-all;
+      line-height: 1.6;
+      min-height: 44px;
+    }
+
+    .paste-area {
+      width: 100%;
+      font-family: 'DM Mono', monospace;
+      font-size: 12px;
+      min-height: 80px;
+      resize: vertical;
+      line-height: 1.5;
+    }
+
+    .view-card {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 1.25rem;
+      margin-top: 1rem;
+    }
+
+    .view-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 1.25rem;
+      padding-bottom: 0.75rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .view-field { margin-bottom: 1rem; }
+
+    .divider {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 1.25rem 0;
+    }
+
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(10px);
+      background: var(--text);
+      color: var(--bg);
+      font-size: 13px;
+      font-weight: 500;
+      padding: 9px 20px;
+      border-radius: 999px;
+      opacity: 0;
+      transition: opacity 0.2s, transform 0.2s;
+      pointer-events: none;
+      z-index: 999;
+      white-space: nowrap;
+    }
+
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    .empty-state {
+      text-align: center;
+      padding: 2rem 1rem;
+      color: var(--text3);
+      font-size: 14px;
+    }
+
+    .help-text {
+      font-size: 12px;
+      color: var(--text3);
+      margin-top: 6px;
+      line-height: 1.5;
+    }
+
+    footer {
+      text-align: center;
+      padding: 1.5rem;
+      font-size: 12px;
+      color: var(--text3);
+      border-top: 1px solid var(--border);
+    }
+
+    svg { display: block; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Form<span>Share</span></div>
+  <div class="badge">URI-based</div>
+</header>
+
+<main>
+  <div class="card">
+    <div class="tabs">
+      <button class="tab active" onclick="setMode('build')" id="tab-build">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="12" height="12" rx="2"/><line x1="5" y1="6" x2="11" y2="6"/><line x1="5" y1="9" x2="9" y2="9"/></svg>
+        Build
+      </button>
+      <button class="tab" onclick="setMode('fill')" id="tab-fill">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 12l2-2 8-8 2 2-8 8-2 2z"/><line x1="10" y1="4" x2="12" y2="6"/></svg>
+        Fill &amp; Share
+      </button>
+      <button class="tab" onclick="setMode('view')" id="tab-view">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="2.5"/><path d="M1.5 8C3 4.5 5 3 8 3s5 1.5 6.5 5C13 11.5 11 13 8 13s-5-1.5-6.5-5z"/></svg>
+        View Shared
+      </button>
+    </div>
+
+    <!-- BUILD PANE -->
+    <div class="pane active" id="pane-build">
+      <div class="field-group">
+        <label class="field-label">Form title</label>
+        <input type="text" id="form-title" placeholder="e.g. Contact request, Bug report…">
+      </div>
+      <div class="field-group">
+        <label class="field-label">Fields</label>
+        <div id="fields-list"></div>
+        <button class="btn" onclick="addField()" style="margin-top:4px">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="3" x2="8" y2="13"/><line x1="3" y1="8" x2="13" y2="8"/></svg>
+          Add field
+        </button>
+      </div>
+      <hr class="divider">
+      <button class="btn btn-accent btn-full" onclick="setMode('fill')">
+        Continue to Fill &amp; Share →
+      </button>
+    </div>
+
+    <!-- FILL PANE -->
+    <div class="pane" id="pane-fill">
+      <div id="fill-form"></div>
+      <hr class="divider">
+      <label class="field-label">Shareable link</label>
+      <div class="url-box" id="gen-url">Fill in the form above to generate a link.</div>
+      <p class="help-text">All data is encoded directly in the URL — no server needed.</p>
+      <div class="btn-row">
+        <button class="btn" onclick="copyLink()">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5" y="5" width="9" height="9" rx="1.5"/><path d="M3 11H2a1 1 0 01-1-1V2a1 1 0 011-1h8a1 1 0 011 1v1"/></svg>
+          Copy link
+        </button>
+        <button class="btn btn-success" onclick="shareNative()">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="3" r="1.5"/><circle cx="3" cy="8" r="1.5"/><circle cx="12" cy="13" r="1.5"/><line x1="4.5" y1="8.8" x2="10.5" y2="12.2"/><line x1="10.5" y1="3.8" x2="4.5" y2="7.2"/></svg>
+          Share
+        </button>
+      </div>
+    </div>
+
+    <!-- VIEW PANE -->
+    <div class="pane" id="pane-view">
+      <div class="field-group">
+        <label class="field-label">Paste shared URL</label>
+        <textarea class="paste-area" id="paste-url" placeholder="Paste the shared URL here (the one with #data= in it)…" oninput="loadFromPasted()"></textarea>
+        <p class="help-text">The URL encodes all form fields and values. Paste it above to view the data.</p>
+      </div>
+      <div id="view-content"></div>
+    </div>
+  </div>
+</main>
+
+<footer>FormShare — data lives in the URL, not on any server.</footer>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  let fields = [
+    { label: 'Name', type: 'text' },
+    { label: 'Email', type: 'email' },
+    { label: 'Message', type: 'textarea' }
+  ];
+  let loadedData = null;
+
+  function setMode(m) {
+    ['build', 'fill', 'view'].forEach(p => {
+      document.getElementById('pane-' + p).classList.toggle('active', p === m);
+      document.getElementById('tab-' + p).classList.toggle('active', p === m);
+    });
+    if (m === 'fill') renderFillForm();
+    if (m === 'view') checkURLOnLoad();
+  }
+
+  function slug(s) { return s.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, ''); }
+  function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+  function renderFields() {
+    const list = document.getElementById('fields-list');
+    const types = ['text', 'email', 'number', 'textarea', 'date', 'url', 'tel'];
+    list.innerHTML = '';
+    fields.forEach((f, i) => {
+      const opts = types.map(t => `<option value="${t}"${f.type === t ? ' selected' : ''}>${t}</option>`).join('');
+      const row = document.createElement('div');
+      row.className = 'field-row';
+      row.innerHTML = `
+        <input type="text" value="${esc(f.label)}" placeholder="Field label" oninput="fields[${i}].label=this.value">
+        <select class="type-select" onchange="fields[${i}].type=this.value">${opts}</select>
+        <button class="icon-btn" onclick="removeField(${i})" aria-label="Remove field">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="3" x2="13" y2="13"/><line x1="13" y1="3" x2="3" y2="13"/></svg>
+        </button>`;
+      list.appendChild(row);
+    });
+  }
+
+  function addField() { fields.push({ label: '', type: 'text' }); renderFields(); }
+  function removeField(i) { fields.splice(i, 1); renderFields(); }
+
+  function renderFillForm() {
+    const title = document.getElementById('form-title').value || 'Untitled form';
+    let html = '';
+    fields.forEach(f => {
+      if (!f.label.trim()) return;
+      const id = 'fill-' + slug(f.label);
+      const inp = f.type === 'textarea'
+        ? `<textarea id="${id}" placeholder="Enter ${f.label.toLowerCase()}…" oninput="updateURL()" rows="3"></textarea>`
+        : `<input type="${f.type}" id="${id}" placeholder="Enter ${f.label.toLowerCase()}…" oninput="updateURL()">`;
+      html += `<div class="view-field"><label class="field-label">${esc(f.label)}</label>${inp}</div>`;
+    });
+    document.getElementById('fill-form').innerHTML = html || '<p style="color:var(--text3);font-size:14px">No fields yet. Go to Build to add some.</p>';
+    updateURL();
+  }
+
+  function getValues() {
+    const vals = {};
+    fields.forEach(f => {
+      const el = document.getElementById('fill-' + slug(f.label));
+      if (el) vals[f.label] = el.value;
+    });
+    return vals;
+  }
+
+  function buildData() {
+    return {
+      title: document.getElementById('form-title').value || 'Untitled form',
+      fields: fields.map(f => ({ label: f.label, type: f.type })),
+      values: getValues()
+    };
+  }
+
+  function buildURL(data) {
+    return location.origin + location.pathname + '#data=' + encodeURIComponent(JSON.stringify(data));
+  }
+
+  function updateURL() {
+    const url = buildURL(buildData());
+    const el = document.getElementById('gen-url');
+    if (el) el.textContent = url;
+    try { history.replaceState(null, '', '#data=' + encodeURIComponent(JSON.stringify(buildData()))); } catch(e) {}
+  }
+
+  function copyLink() {
+    const url = buildURL(buildData());
+    navigator.clipboard.writeText(url)
+      .then(() => showToast('Link copied!'))
+      .catch(() => prompt('Copy this link:', url));
+  }
+
+  function shareNative() {
+    const data = buildData();
+    const url = buildURL(data);
+    if (navigator.share) {
+      navigator.share({ title: data.title, url }).catch(() => {});
+    } else {
+      copyLink();
+    }
+  }
+
+  function loadFromPasted() {
+    const raw = document.getElementById('paste-url').value.trim();
+    const idx = raw.indexOf('#data=');
+    if (idx === -1) {
+      document.getElementById('view-content').innerHTML = '';
+      return;
+    }
+    try {
+      loadedData = JSON.parse(decodeURIComponent(raw.slice(idx + 6)));
+      renderViewContent(loadedData);
+    } catch(e) {
+      document.getElementById('view-content').innerHTML = '<p style="color:var(--text3);font-size:13px;margin-top:8px">Could not parse the URL. Make sure it contains #data=…</p>';
+    }
+  }
+
+  function renderViewContent(data) {
+    let html = `<div class="view-card">
+      <div class="view-title">${esc(data.title || 'Untitled form')}</div>`;
+    (data.fields || []).forEach(f => {
+      const val = (data.values && data.values[f.label]) || '';
+      const id = 'view-' + slug(f.label);
+      const inp = f.type === 'textarea'
+        ? `<textarea id="${id}" rows="3">${esc(val)}</textarea>`
+        : `<input type="${f.type}" id="${id}" value="${esc(val)}">`;
+      html += `<div class="view-field"><label class="field-label">${esc(f.label)}</label>${inp}</div>`;
+    });
+    html += `</div>`;
+    html += `<div class="btn-row">
+      <button class="btn btn-full" onclick="editShared()">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 12l2-2 8-8 2 2-8 8-2 2z"/></svg>
+        Edit &amp; reshare
+      </button>
+    </div>`;
+    document.getElementById('view-content').innerHTML = html;
+  }
+
+  function editShared() {
+    if (!loadedData) return;
+    fields = loadedData.fields || [];
+    document.getElementById('form-title').value = loadedData.title || '';
+    renderFields();
+    setMode('fill');
+    setTimeout(() => {
+      (loadedData.fields || []).forEach(f => {
+        const el = document.getElementById('fill-' + slug(f.label));
+        if (el && loadedData.values) el.value = loadedData.values[f.label] || '';
+      });
+      updateURL();
+    }, 50);
+  }
+
+  function checkURLOnLoad() {
+    const hash = location.hash;
+    if (hash.startsWith('#data=')) {
+      try {
+        loadedData = JSON.parse(decodeURIComponent(hash.slice(6)));
+        document.getElementById('paste-url').value = location.href;
+        renderViewContent(loadedData);
+      } catch(e) {}
+    }
+  }
+
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2200);
+  }
+
+  renderFields();
+
+  // Auto-load from URL on page open
+  if (location.hash.startsWith('#data=')) {
+    setMode('view');
+    checkURLOnLoad();
+  }
+</script>
+</body>
+</html>
