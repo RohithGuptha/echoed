@@ -145,6 +145,24 @@ function copyLink() {
     .catch(function () { prompt("Copy this link:", url); });
 }
 
+function copyJSON() {
+  if (!shared || !shared.values) return;
+  var jsonStr = JSON.stringify(shared.values, null, 2);
+  navigator.clipboard.writeText(jsonStr)
+    .then(function () { showToast("Data copied as JSON!"); })
+    .catch(function () { prompt("Copy this JSON:", jsonStr); });
+}
+
+function copyText() {
+  if (!shared || !shared.fields || !shared.values) return;
+  var textStr = shared.fields.map(function (f) {
+    return f.label + ": " + (shared.values[f.label] || "");
+  }).join("\n");
+  navigator.clipboard.writeText(textStr)
+    .then(function () { showToast("Data copied as text!"); })
+    .catch(function () { prompt("Copy this text:", textStr); });
+}
+
 function shareNative() {
   var d = buildData();
   var url = buildURL(d);
@@ -177,7 +195,7 @@ function renderView() {
     html += "<div class='vfield'><label class='fl' for='" + id + "'>" + esc(f.label) + "</label>" + inp + "</div>";
   });
 
-  html += "</div><div class='brow'><button class='btn btn-w btn-p' onclick='editShared()'><svg width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7'></path><path d='M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z'></path></svg>Edit &amp; Reshare</button></div>";
+  html += "</div><div class='brow'><button class='btn btn-w btn-s' onclick='copyText()'><svg width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z'></path><polyline points='14 2 14 8 20 8'></polyline><line x1='16' y1='13' x2='8' y2='13'></line><line x1='16' y1='17' x2='8' y2='17'></line><polyline points='10 9 9 9 8 9'></polyline></svg>Copy Text</button><button class='btn btn-w btn-s' onclick='copyJSON()'><svg width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><rect x='9' y='9' width='13' height='13' rx='2' ry='2'></rect><path d='M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1'></path></svg>Copy JSON</button><button class='btn btn-w btn-p' onclick='editShared()'><svg width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7'></path><path d='M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z'></path></svg>Edit &amp; Reshare</button></div>";
 
   loaded.innerHTML = html;
 }
