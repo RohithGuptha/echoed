@@ -1,8 +1,178 @@
 var fields = [{ label: "Name", type: "text" }, { label: "Email", type: "email" }, { label: "Message", type: "textarea" }];
 var shared = null;
 
+// -- Encoding --------------------------------------------------
+var FIELD_TYPES = ["text", "email", "textarea", "number", "date", "url", "tel"];
+var FS = "\x1C";
+var RS = "\x1E";
+var US = "\x1F";
+
+function serialize(d) {
+  var f = d.fields.map(function (f) {
+    return f.label + US + FIELD_TYPES.indexOf(f.type);
+  }).join(RS);
+  var v = d.fields.map(function (f) {
+    return d.values[f.label] || "";
+  }).join(RS);
+  return d.title + FS + f + FS + v;
+}
+
+function deserialize(str) {
+  var parts = str.split(FS);
+  var title  = parts[0] || "";
+  var fStrs  = parts[1] ? parts[1].split(RS) : [];
+  var vParts = parts[2] ? parts[2].split(RS) : [];
+  var fields = fStrs.filter(Boolean).map(function (s) {
+    var p = s.split(US);
+    return { label: p[0] || "", type: FIELD_TYPES[+p[1]] || "text" };
+  });
+  var values = {};
+  fields.forEach(function (f, i) { values[f.label] = vParts[i] || ""; });
+  return { title: title, fields: fields, values: values };
+}
+
+function stringToUint8Array(str) {
+  return new TextEncoder().encode(str);
+}
+
+function uint8ArrayToString(bytes) {
+  return new TextDecoder().decode(bytes);
+}
+
+function bytesToBase64Url(bytes) {
+  var binary = "";
+  var chunkSize = 0x8000;
+  for (var i = 0; i < bytes.length; i += chunkSize) {
+    var chunk = bytes.subarray(i, i + chunkSize);
+    binary += String.fromCharCode.apply(null, chunk);
+  }
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+function base64UrlToBytes(str) {
+  var b64 = str.replace(/-/g, "+").replace(/_/g, "/");
+  while (b64.length % 4) b64 += "=";
+  var binary = atob(b64);
+  var bytes = new Uint8Array(binary.length);
+  for (var i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+
+async function compressBytes(bytes) {
+  if (typeof CompressionStream === "function") {
+    try {
+      var cs = new CompressionStream("deflate");
+      var writer = cs.writable.getWriter();
+      writer.write(bytes);
+      writer.close();
+      var compressed = await new Response(cs.readable).arrayBuffer();
+      return new Uint8Array(compressed);
+    } catch (e) {
+      // Fallback to JS compressor if built-in compression fails.
+    }
+  }
+  return compressBytesFallback(bytes);
+}
+
+async function decompressBytes(bytes) {
+  if (typeof DecompressionStream === "function") {
+    try {
+      var ds = new DecompressionStream("deflate");
+      var writer = ds.writable.getWriter();
+      writer.write(bytes);
+      writer.close();
+      var decompressed = await new Response(ds.readable).arrayBuffer();
+      return new Uint8Array(decompressed);
+    } catch (e) {
+      // Fallback to JS decompressor if built-in decompression fails.
+    }
+  }
+  return decompressBytesFallback(bytes);
+}
+
+function compressBytesFallback(bytes) {
+  return compressStringToBytes(uint8ArrayToString(bytes));
+}
+
+function decompressBytesFallback(bytes) {
+  return stringToUint8Array(decompressStringFromBytes(bytes));
+}
+
+function compressStringToBytes(str) {
+  var dict = {};
+  for (var i = 0; i < 256; i++) dict[String.fromCharCode(i)] = i;
+  var nextCode = 256;
+  var w = "";
+  var result = [];
+
+  for (var i = 0; i < str.length; i++) {
+    var c = str.charAt(i);
+    var wc = w + c;
+    if (dict.hasOwnProperty(wc)) {
+      w = wc;
+    } else {
+      result.push(dict[w]);
+      if (nextCode < 0x10000) dict[wc] = nextCode++;
+      w = c;
+    }
+  }
+
+  if (w !== "") result.push(dict[w]);
+
+  var output = new Uint8Array(result.length * 2);
+  for (var j = 0; j < result.length; j++) {
+    output[j * 2] = (result[j] >> 8) & 0xFF;
+    output[j * 2 + 1] = result[j] & 0xFF;
+  }
+  return output;
+}
+
+function decompressStringFromBytes(bytes) {
+  if (!bytes.length) return "";
+  var codes = new Uint16Array(bytes.length / 2);
+  for (var i = 0; i < codes.length; i++) {
+    codes[i] = (bytes[i * 2] << 8) | bytes[i * 2 + 1];
+  }
+
+  var dict = [];
+  for (var i = 0; i < 256; i++) dict[i] = String.fromCharCode(i);
+  var nextCode = 256;
+  var w = String.fromCharCode(codes[0]);
+  var result = w;
+
+  for (var i = 1; i < codes.length; i++) {
+    var k = codes[i];
+    var entry = dict[k] !== undefined ? dict[k] : w + w.charAt(0);
+    result += entry;
+    if (nextCode < 0x10000) dict[nextCode++] = w + entry.charAt(0);
+    w = entry;
+  }
+  return result;
+}
+
+function b64uEnc(str) {
+  return btoa(
+    encodeURIComponent(str).replace(/%([0-9A-F]{2})/gi, function (_, h) {
+      return String.fromCharCode(parseInt(h, 16));
+    })
+  ).replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
+}
+
+function b64uDec(str) {
+  var b64 = str.replace(/-/g, "+").replace(/_/g, "/");
+  while (b64.length % 4) b64 += "=";
+  return decodeURIComponent(
+    atob(b64).split("").map(function (c) {
+      return "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2);
+    }).join("")
+  );
+}
+// --------------------------------------------------------------
+
+// -- Utilities -------------------------------------------------
 function slug(s) { return s.replace(/\s+/g, "_").replace(/[^a-zA-Z0-9_]/g, ""); }
-// properly escape all dangerous HTML characters, including single quotes to prevent injection
+
+// Escape all dangerous HTML characters including single quotes to prevent injection
 function esc(s) {
   return String(s)
     .replace(/&/g, "&amp;")
@@ -18,7 +188,9 @@ function showToast(msg) {
   t.classList.add("show");
   setTimeout(function () { t.classList.remove("show"); }, 2500);
 }
+// --------------------------------------------------------------
 
+// -- Tabs ------------------------------------------------------
 function setTab(e, name) {
   ["build", "fill", "view"].forEach(function (n) {
     var isTarget = n === name;
@@ -29,7 +201,6 @@ function setTab(e, name) {
     tab.setAttribute("aria-selected", isTarget);
 
     if (isTarget) {
-      // slight delay for smooth transition if already rendered
       setTimeout(function () { pane.classList.add("active"); }, 10);
       pane.style.display = "block";
     } else {
@@ -41,14 +212,15 @@ function setTab(e, name) {
   if (name === "fill") renderFill();
   if (name === "view") renderView();
 }
+// --------------------------------------------------------------
 
+// -- Builder ---------------------------------------------------
 function renderBuilder() {
   var list = document.getElementById("fields-list");
-  var types = ["text", "email", "textarea", "number", "date", "url", "tel"];
   list.innerHTML = "";
 
   fields.forEach(function (f, i) {
-    var opts = types.map(function (t) {
+    var opts = FIELD_TYPES.map(function (t) {
       return "<option value='" + t + "'" + (f.type === t ? " selected" : "") + ">" + t + "</option>";
     }).join("");
 
@@ -67,7 +239,7 @@ function renderBuilder() {
 
 function updateFieldLabel(i, val) {
   fields[i].label = val;
-  // remove error class if user types
+  // Remove error class once the user starts typing a valid label
   var inputs = document.querySelectorAll("#fields-list .frow input[type='text']");
   if (inputs[i] && val.trim() !== "") {
     inputs[i].classList.remove("error");
@@ -76,15 +248,17 @@ function updateFieldLabel(i, val) {
 
 function addField() { fields.push({ label: "", type: "text" }); renderBuilder(); }
 function removeField(i) { fields.splice(i, 1); renderBuilder(); }
+// --------------------------------------------------------------
 
+// -- Fill ------------------------------------------------------
 function renderFill() {
-  // Validate fields before proceeding (ensure they have labels)
+  // Validate fields before proceeding - show red borders on empty labels
   var hasEmpty = false;
-  fields.forEach(function (f, i) {
+  fields.forEach(function (f) {
     if (!f.label.trim()) hasEmpty = true;
   });
   if (hasEmpty) {
-    renderBuilder(); // re-render to show red error borders
+    renderBuilder();
   }
 
   var html = "";
@@ -95,8 +269,8 @@ function renderFill() {
     validFields++;
     var id = "fill-" + i + "-" + slug(f.label);
     var inp = f.type === "textarea"
-      ? "<textarea id='" + id + "' rows='4' placeholder='Enter " + esc(f.label.toLowerCase()) + "…' oninput='refreshURL()'></textarea>"
-      : "<input type='" + f.type + "' id='" + id + "' placeholder='Enter " + esc(f.label.toLowerCase()) + "…' oninput='refreshURL()'>";
+      ? "<textarea id='" + id + "' rows='4' placeholder='Enter " + esc(f.label.toLowerCase()) + "...' oninput='refreshURL()'></textarea>"
+      : "<input type='" + f.type + "' id='" + id + "' placeholder='Enter " + esc(f.label.toLowerCase()) + "...' oninput='refreshURL()'>";
     html += "<div class='fg'><label class='fl' for='" + id + "'>" + esc(f.label) + "</label>" + inp + "</div>";
   });
 
@@ -118,7 +292,9 @@ function getVals() {
   });
   return v;
 }
+// --------------------------------------------------------------
 
+// -- URL -------------------------------------------------------
 function buildData() {
   var validFields = fields.filter(function (f) { return f.label.trim(); });
   return {
@@ -128,18 +304,26 @@ function buildData() {
   };
 }
 
-function buildURL(d) { return location.href.split("#")[0] + "#data=" + encodeURIComponent(JSON.stringify(d)); }
-
-function refreshURL() {
-  var d = buildData();
-  var url = buildURL(d);
-  var el = document.getElementById("gen-url");
-  if (el) el.textContent = url;
-  try { history.replaceState(null, "", "#data=" + encodeURIComponent(JSON.stringify(d))); } catch (e) { }
+async function buildURL(d) {
+  var raw = serialize(d);
+  var rawBytes = stringToUint8Array(raw);
+  var compressedBytes = await compressBytes(rawBytes);
+  var encoded = bytesToBase64Url(compressedBytes);
+  return location.href.split("#")[0] + "#v2=" + encoded;
 }
 
-function copyLink() {
-  var url = buildURL(buildData());
+async function refreshURL() {
+  var d = buildData();
+  var url = await buildURL(d);
+  var el = document.getElementById("gen-url");
+  if (el) el.textContent = url;
+  try { history.replaceState(null, "", url.slice(url.indexOf("#"))); } catch (e) { }
+}
+// --------------------------------------------------------------
+
+// -- Copy / Share ----------------------------------------------
+async function copyLink() {
+  var url = await buildURL(buildData());
   navigator.clipboard.writeText(url)
     .then(function () { showToast("Link copied to clipboard!"); })
     .catch(function () { prompt("Copy this link:", url); });
@@ -163,16 +347,20 @@ function copyText() {
     .catch(function () { prompt("Copy this text:", textStr); });
 }
 
-function shareNative() {
+async function shareNative() {
   var d = buildData();
-  var url = buildURL(d);
+  var url = await buildURL(d);
   if (navigator.share) {
     navigator.share({ title: d.title, url: url }).catch(function () { });
   } else {
-    copyLink();
+    navigator.clipboard.writeText(url)
+      .then(function () { showToast("Link copied to clipboard!"); })
+      .catch(function () { prompt("Copy this link:", url); });
   }
 }
+// --------------------------------------------------------------
 
+// -- View ------------------------------------------------------
 function renderView() {
   var loaded = document.getElementById("view-loaded");
   var empty = document.getElementById("view-empty");
@@ -216,23 +404,35 @@ function editShared() {
     refreshURL();
   }, 50);
 }
+// --------------------------------------------------------------
 
-function boot() {
+// -- Init ------------------------------------------------------
+async function boot() {
   renderBuilder();
   var href = location.href;
-  var idx = href.indexOf("#data=");
+  var idx = href.indexOf("#v2=");
   if (idx !== -1) {
     try {
-      shared = JSON.parse(decodeURIComponent(href.slice(idx + 6)));
+      var encoded = href.slice(idx + 4);
+      var payload = base64UrlToBytes(encoded);
+      var rawBytes = await decompressBytes(payload);
+      shared = deserialize(uint8ArrayToString(rawBytes));
       document.getElementById("banner").classList.add("show");
       setTab(null, "view");
+      return;
     } catch (e) {
-      setTab(null, "build");
+      try {
+        shared = deserialize(b64uDec(href.slice(idx + 4)));
+        document.getElementById("banner").classList.add("show");
+        setTab(null, "view");
+        return;
+      } catch (e) {
+        // Fall through to build mode.
+      }
     }
-  } else {
-    setTab(null, "build");
   }
+  setTab(null, "build");
 }
 
-// Initialize
-document.addEventListener("DOMContentLoaded", boot);
+boot();
+// --------------------------------------------------------------
