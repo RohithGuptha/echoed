@@ -31,44 +31,40 @@
         <span>You received a shared form &mdash; filled data is shown below.</span>
       </div>
 
-      <div class="card">
-        <div class="tabs" role="tablist">
-          <button class="tab" id="tab-build" role="tab" aria-controls="pane-build" onclick="setTab(event,'build')">
-            <span class="step-num">1</span>
-            Create
-          </button>
-          <button class="tab" id="tab-fill" role="tab" aria-controls="pane-fill" onclick="setTab(event,'fill')">
-            <span class="step-num">2</span>
-            Fill &amp; Share
-          </button>
-          <button class="tab" id="tab-view" role="tab" aria-controls="pane-view" onclick="setTab(event,'view')">
-            <span class="step-num">3</span>
-            View
-          </button>
-        </div>
-
-        <div class="pane-container">
-          <!-- BUILD PANE -->
-          <div class="pane" id="pane-build" role="tabpanel" aria-labelledby="tab-build">
+      <!-- Layout: Two-column grid for create (left) + preview/data (right) -->
+      <div class="layout-grid">
+        <!-- LEFT COLUMN: Form Builder -->
+        <div class="builder-section">
+          <div class="section-header">
+            <h2 class="section-title">Create Form</h2>
+            <span class="badge">Step 1</span>
+          </div>
+          
+          <div class="builder-card">
             <div class="fg">
-              <label class="fl" for="form-title">Form title</label>
+              <label class="fl" for="form-title">Form Title</label>
               <input type="text" id="form-title" placeholder="e.g. Contact request, Bug report…" autocomplete="off">
             </div>
+
             <div class="fg">
-              <label class="fl">Fields</label>
-              <div id="fields-list"></div>
-              <button class="btn" onclick="addField()" style="margin-top:8px">
+              <label class="fl">Form Fields</label>
+              <div id="fields-list" class="fields-container"></div>
+              <button class="btn btn-add" onclick="addField()">
                 <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2"
                   stroke-linecap="round">
                   <line x1="8" y1="2" x2="8" y2="14" />
                   <line x1="2" y1="8" x2="14" y2="8" />
                 </svg>
-                Add field
+                Add Field
               </button>
             </div>
-            <hr class="divider">
-            <button class="btn btn-p btn-w" onclick="setTab(null,'fill')">
-              Next Step: Fill &amp; Share
+
+            <div class="fg">
+              <p class="hint">Build your form step-by-step. Click "Next" to fill data and generate a shareable link.</p>
+            </div>
+
+            <button class="btn btn-p btn-w btn-next" onclick="setTab(null,'fill')">
+              Next: Fill &amp; Share
               <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"
                 stroke-linecap="round" stroke-linejoin="round">
                 <line x1="3" y1="8" x2="13" y2="8"></line>
@@ -76,17 +72,34 @@
               </svg>
             </button>
           </div>
+        </div>
+
+        <!-- RIGHT COLUMN: Fill Form & Share -->
+        <div class="preview-section">
+          <div class="tabs" role="tablist" style="margin-bottom: 1.5rem;">
+            <button class="tab-pill" id="tab-fill" role="tab" aria-controls="pane-fill" onclick="setTab(event,'fill')">
+              <span class="step-num">2</span>
+              Fill &amp; Share
+            </button>
+            <button class="tab-pill" id="tab-view" role="tab" aria-controls="pane-view" onclick="setTab(event,'view')">
+              <span class="step-num">3</span>
+              View
+            </button>
+          </div>
 
           <!-- FILL PANE -->
           <div class="pane" id="pane-fill" role="tabpanel" aria-labelledby="tab-fill">
+            <div class="section-header">
+              <h2 class="section-title">Fill &amp; Share</h2>
+            </div>
             <div id="fill-form"></div>
             <hr class="divider">
-            <label class="fl">Your shareable link</label>
+            <label class="fl">Shareable Link</label>
             <div class="urlbox-wrap">
               <div class="urlbox-hint">Click to copy</div>
               <div class="urlbox" id="gen-url" onclick="copyLink()">Fill in values above to generate a link.</div>
             </div>
-            <p class="hint">All data is encoded directly into this URL. Nothing is sent to any server.</p>
+            <p class="hint">All data is encoded in the URL. Nothing is stored on any server.</p>
             <div class="brow">
               <button class="btn btn-p" onclick="copyLink()">
                 <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"
@@ -94,7 +107,7 @@
                   <rect x="5" y="5" width="9" height="9" rx="2" />
                   <path d="M4 11H3a2 2 0 0 1-2-2V3a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v1" />
                 </svg>
-                Copy link
+                Copy Link
               </button>
               <button class="btn btn-s" onclick="shareNative()">
                 <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"
@@ -112,6 +125,9 @@
 
           <!-- VIEW PANE -->
           <div class="pane" id="pane-view" role="tabpanel" aria-labelledby="tab-view">
+            <div class="section-header">
+              <h2 class="section-title">Received Data</h2>
+            </div>
             <div id="view-loaded"></div>
             <div id="view-empty" class="empty-state">
               <div class="empty-icon">
@@ -121,15 +137,15 @@
                   <line x1="9" y1="3" x2="9" y2="21"></line>
                 </svg>
               </div>
-              <h3 class="empty-title">No shared data found</h3>
-              <p class="empty-desc">Open a shared echoed link to view the filled form data here.</p>
+              <h3 class="empty-title">No shared data</h3>
+              <p class="empty-desc">Open a shared echoed link to view filled form data here.</p>
               <button class="btn" onclick="setTab(null, 'build')">
                 <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"
                   stroke-linecap="round" stroke-linejoin="round">
                   <line x1="8" y1="2" x2="8" y2="14"></line>
                   <line x1="2" y1="8" x2="14" y2="8"></line>
                 </svg>
-                Create a new form
+                Create Form
               </button>
             </div>
           </div>

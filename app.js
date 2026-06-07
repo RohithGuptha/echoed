@@ -1,7 +1,7 @@
 // --- state ---
 
-var fields     = [{ label: "Name", type: "text" }, { label: "Email", type: "email" }, { label: "Message", type: "textarea" }];
-var shared     = null;
+var fields      = [{ label: "Name", type: "text" }, { label: "Email", type: "email" }, { label: "Message", type: "textarea" }];
+var shared      = null;
 var FIELD_TYPES = ["text", "email", "textarea", "number", "date", "url", "tel"];
 
 // delimiter bytes: ASCII control codes not present on any keyboard layout.
@@ -13,7 +13,7 @@ var US = "\x1F"; // separates units within a field record (label | type-index)
 
 // encoding tags: first byte of every compressed payload written by compressBytes().
 // decompressBytes() reads this byte to know how to decode the rest, making all
-// cross-browser writer/reader combinations deterministic (fixes the silent-garbage bug).
+// cross-browser writer/reader combinations deterministic.
 var TAG_DEFLATE = 1; // remaining bytes are deflate-compressed
 var TAG_RAW     = 2; // remaining bytes are raw UTF-8 (compression unavailable or not beneficial)
 
@@ -42,10 +42,10 @@ function serialize(d) {
 }
 
 function deserialize(str) {
-  var parts  = str.split(FS);
-  var title  = parts[0] || "";
-  var fparts = parts[1] ? parts[1].split(RS) : [];
-  var vparts = parts[2] ? parts[2].split(RS) : [];
+  var parts     = str.split(FS);
+  var title     = parts[0] || "";
+  var fparts    = parts[1] ? parts[1].split(RS) : [];
+  var vparts    = parts[2] ? parts[2].split(RS) : [];
   var fieldList = fparts.map(function (fp) {
     var up = fp.split(US);
     return { label: up[0] || "", type: FIELD_TYPES[parseInt(up[1], 10)] || "text" };
@@ -68,9 +68,9 @@ function bytesToBase64Url(bytes) {
 }
 
 function base64UrlToBytes(str) {
-  var b64  = str.replace(/-/g, "+").replace(/_/g, "/");
-  var bin  = atob(b64);
-  var out  = new Uint8Array(bin.length);
+  var b64 = str.replace(/-/g, "+").replace(/_/g, "/");
+  var bin = atob(b64);
+  var out = new Uint8Array(bin.length);
   for (var i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
   return out;
 }
@@ -109,9 +109,9 @@ async function inflateBytes(bytes) {
 }
 
 // compressBytes: attempts deflate (TAG_DEFLATE). Falls back to raw (TAG_RAW) if
-// CompressionStream is absent or if deflate expands the input (common for short payloads
-// where the deflate header overhead exceeds any savings). The TAG_ prefix is always
-// written so decompressBytes() never has to guess the encoding.
+// CompressionStream is absent or if deflate expands the input (common for short
+// payloads where the deflate header overhead exceeds any savings). The TAG_ prefix
+// is always written so decompressBytes() never has to guess the encoding.
 async function compressBytes(bytes) {
   if (typeof CompressionStream !== "undefined") {
     try {
@@ -183,28 +183,30 @@ function showToast(msg) {
 // --- tabs ---
 
 function setTab(e, name) {
-  ["build", "fill", "view"].forEach(function (n) {
+  ["fill", "view"].forEach(function (n) {
     var isTarget = n === name;
     var tab  = document.getElementById("tab-" + n);
     var pane = document.getElementById("pane-" + n);
-    tab.classList.toggle("active", isTarget);
-    tab.setAttribute("aria-selected", isTarget);
-    if (isTarget) {
-      setTimeout(function () { pane.classList.add("active"); }, 10);
-      pane.style.display = "block";
-    } else {
-      pane.classList.remove("active");
-      setTimeout(function () { if (!pane.classList.contains("active")) pane.style.display = "none"; }, 300);
+    if (tab) {
+      tab.classList.toggle("active", isTarget);
+      tab.setAttribute("aria-selected", isTarget);
+    }
+    if (pane) {
+      if (isTarget) {
+        setTimeout(function () { pane.classList.add("active"); }, 10);
+        pane.style.display = "block";
+      } else {
+        pane.classList.remove("active");
+        setTimeout(function () { if (!pane.classList.contains("active")) pane.style.display = "none"; }, 300);
+      }
     }
   });
 
   if (name === "fill") {
-    // Snapshot current values before renderFill() tears down the DOM.
-    // getVals() reads by element ID and works even when the fill pane is hidden,
-    // so switching away and back preserves whatever the user had typed.
     var savedVals = getVals();
     renderFill();
     populateFillValues(savedVals);
+    refreshURL();
   }
   if (name === "view") renderView();
 }
@@ -221,14 +223,13 @@ function renderBuilder() {
       return "<option value='" + t + "'" + (f.type === t ? " selected" : "") + ">" + t + "</option>";
     }).join("");
 
-    var labelTrimmed = f.label.trim();
-    // A field is invalid if its label is empty or duplicates another field's label.
-    var isDupe      = labelTrimmed !== "" && fields.some(function (g, j) {
-      return j !== i && g.label.trim() === labelTrimmed;
+    var trimmed    = f.label.trim();
+    var isDupe     = trimmed !== "" && fields.some(function (g, j) {
+      return j !== i && g.label.trim() === trimmed;
     });
-    var isInvalid   = !labelTrimmed || isDupe;
-    var inputClass  = isInvalid ? " class='error'" : "";
-    var placeholder = !labelTrimmed ? "Field label (required)" : isDupe ? "Duplicate label" : "Field label";
+    var isInvalid  = !trimmed || isDupe;
+    var inputClass = isInvalid ? " class='error'" : "";
+    var placeholder = !trimmed ? "Field label (required)" : isDupe ? "Duplicate label" : "Field label";
 
     var row = document.createElement("div");
     row.className = "frow";
@@ -247,7 +248,7 @@ function renderBuilder() {
 
 function updateFieldLabel(i, val) {
   fields[i].label = val;
-  var inputs   = document.querySelectorAll("#fields-list .frow input[type='text']");
+  var inputs  = document.querySelectorAll("#fields-list .frow input[type='text']");
   if (inputs[i]) {
     var trimmed = val.trim();
     var isDupe  = trimmed !== "" && fields.some(function (f, j) {
@@ -446,11 +447,9 @@ function editShared() {
   fields = (shared.fields || []).map(function (f) { return { label: f.label, type: f.type }; });
   document.getElementById("form-title").value = shared.title || "";
   renderBuilder();
-  // setTab rebuilds the fill DOM and restores whatever snapshot it finds; the next line
-  // immediately overwrites that with the correct shared values, so the snapshot is irrelevant.
   setTab(null, "fill");
   populateFillValues(shared.values);
-  refreshURL(); // fire-and-forget: stamp the hash with the loaded data
+  refreshURL();
 }
 
 
@@ -458,20 +457,24 @@ function editShared() {
 
 async function boot() {
   renderBuilder();
+  
+  // Initialize tabs
+  setTab(null, "fill");
+  
   var href = location.href;
   var idx  = href.indexOf("#v2=");
   if (idx !== -1) {
     try {
       var tagged = base64UrlToBytes(href.slice(idx + 4));
-      var bytes  = await decompressBytes(tagged); // reads TAG_ byte; throws on unknown tag
+      var bytes  = await decompressBytes(tagged);
       shared     = deserialize(uint8ArrayToString(bytes));
       document.getElementById("banner").classList.add("show");
       setTab(null, "view");
     } catch (e) {
-      setTab(null, "build");
+      setTab(null, "fill");
     }
   } else {
-    setTab(null, "build");
+    setTab(null, "fill");
   }
 }
 
