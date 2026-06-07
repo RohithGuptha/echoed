@@ -2,6 +2,7 @@
 
 var fields      = [{ label: "Name", type: "text" }, { label: "Email", type: "email" }, { label: "Message", type: "textarea" }];
 var shared      = null;
+var openedFromShare = false;
 var FIELD_TYPES = ["text", "email", "textarea", "number", "date", "url", "tel"];
 
 // delimiter bytes: ASCII control codes not present on any keyboard layout.
@@ -224,7 +225,7 @@ function setTab(e, name) {
   if (name === "view") renderView();
 
   var banner = document.getElementById("banner");
-  if (banner) banner.classList.toggle("show", name === "view");
+  if (banner) banner.classList.toggle("show", name === "view" && openedFromShare);
 
   updatePreviewHeader(name);
   updateShareCard(name);
@@ -406,6 +407,31 @@ function getVals() {
   return v;
 }
 
+function formatViewValue(f, val) {
+  if (!val) return "<span class='vtext empty'>(empty)</span>";
+  var trimmed = String(val).trim();
+  var escaped = esc(trimmed);
+  var withBreaks = escaped.replace(/\n/g, "<br>");
+  var emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  var urlRe = /^(https?:\/\/|www\.)[^\s]+$/i;
+  var telRe = /^\+?[0-9][0-9 \-().]{6,}[0-9]$/;
+
+  if (f.type === "email" || emailRe.test(trimmed)) {
+    return "<a class='vlink' href='mailto:" + escaped + "'>" + escaped + "</a>";
+  }
+
+  if (f.type === "url" || urlRe.test(trimmed)) {
+    var href = /^https?:\/\//i.test(trimmed) ? trimmed : "https://" + trimmed;
+    return "<a class='vlink' href='" + esc(href) + "' target='_blank' rel='noreferrer noopener'>" + withBreaks + "</a>";
+  }
+
+  if (f.type === "tel" || telRe.test(trimmed)) {
+    return "<a class='vlink' href='tel:" + escaped + "'>" + escaped + "</a>";
+  }
+
+  return "<span>" + withBreaks + "</span>";
+}
+
 
 // --- URL ---
 
@@ -510,15 +536,22 @@ function renderView() {
 
   empty.style.display = "none";
   var html = "<div class='vwrap'>";
+  html += "<div class='share-card view-share-card'>"
+       + "<div class='share-card-label'>Shared link</div>"
+       + "<div class='urlbox' onclick='copyLink()' title='Click to copy link'>" + esc(location.href) + "</div>"
+       + "<div class='share-card-actions'>"
+       + "<button class='btn btn-s' onclick='copyLink()'>Copy Link</button>"
+       + "<button class='btn btn-p' onclick='shareNative()'>Share</button>"
+       + "</div>"
+       + "</div>";
   html += "<div class='vtitle'>" + esc(shared.title || "Untitled form") + "</div>";
 
   html += "<div class='vfields'>";
   shared.fields.forEach(function (f, i) {
     var val = (shared.values && shared.values[f.label]) || "";
-    var safeVal = esc(val).replace(/\n/g, "<br>");
     html += "<div class='vfield'>"
          + "<div class='vlabel'>" + esc(f.label) + "</div>"
-         + "<div class='vvalue'>" + safeVal + "</div>"
+         + "<div class='vvalue'>" + formatViewValue(f, val) + "</div>"
          + "</div>";
   });
   html += "</div>";
@@ -573,7 +606,7 @@ async function boot() {
       var tagged = base64UrlToBytes(href.slice(idx + 4));
       var bytes  = await decompressBytes(tagged);
       shared     = deserialize(uint8ArrayToString(bytes));
-      document.getElementById("banner").classList.add("show");
+      openedFromShare = true;
       setTab(null, "view");
     } catch (e) {
       setTab(null, "build");
