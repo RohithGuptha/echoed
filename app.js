@@ -20,6 +20,7 @@ var TAG_RAW     = 2; // remaining bytes are raw UTF-8 (compression unavailable o
 // refreshURL() sequence counter. Only the call that last incremented this commits
 // its result to the DOM and history, preventing stale async results from winning a race.
 var refreshSeq = 0;
+var currentMode = "build";
 
 
 // --- serialization ---
@@ -183,16 +184,23 @@ function showToast(msg) {
 // --- tabs ---
 
 function setTab(e, name) {
-  ["fill", "view"].forEach(function (n) {
-    var isTarget = n === name;
+  currentMode = name;
+  updateShellMode(name);
+
+  ["build", "fill", "view"].forEach(function (n) {
+    var step = n === "build" ? "create" : n === "fill" ? "fill" : "review";
+    var workflow = document.getElementById("workflow-" + step);
+    if (workflow) workflow.classList.toggle("active", n === name);
+
     var tab  = document.getElementById("tab-" + n);
     var pane = document.getElementById("pane-" + n);
     if (tab) {
+      var isTarget = n === name;
       tab.classList.toggle("active", isTarget);
       tab.setAttribute("aria-selected", isTarget);
     }
     if (pane) {
-      if (isTarget) {
+      if (n === name) {
         setTimeout(function () { pane.classList.add("active"); }, 10);
         pane.style.display = "block";
       } else {
@@ -202,6 +210,11 @@ function setTab(e, name) {
     }
   });
 
+  if (name === "build") {
+    renderBuilder();
+    var title = document.getElementById("form-title");
+    if (title) title.focus();
+  }
   if (name === "fill") {
     var savedVals = getVals();
     renderFill();
@@ -209,6 +222,72 @@ function setTab(e, name) {
     refreshURL();
   }
   if (name === "view") renderView();
+
+  var banner = document.getElementById("banner");
+  if (banner) banner.classList.toggle("show", name === "view");
+
+  updatePreviewHeader(name);
+  updateShareCard(name);
+}
+
+function updateShellMode(name) {
+  var shell = document.querySelector('.shell');
+  if (!shell) return;
+  shell.classList.toggle('mode-build', name === 'build');
+  shell.classList.toggle('mode-fill', name === 'fill');
+  shell.classList.toggle('mode-view', name === 'view');
+}
+
+function updateShareCard(name) {
+  var urlEl = document.getElementById("gen-url");
+  var copyBtn = document.getElementById("copy-link-btn");
+  var shareBtn = document.getElementById("share-link-btn");
+  if (!urlEl || !copyBtn || !shareBtn) return;
+
+  if (name === "build") {
+    urlEl.classList.add("disabled");
+    urlEl.dataset.disabled = "true";
+    urlEl.textContent = "Complete the form and switch to Fill to generate a shareable link.";
+    copyBtn.disabled = true;
+    shareBtn.disabled = true;
+    return;
+  }
+
+  var hasValidFields = fields.some(function (f) { return f.label.trim(); });
+  if (name === "fill" && !hasValidFields) {
+    urlEl.classList.add("disabled");
+    urlEl.dataset.disabled = "true";
+    urlEl.textContent = "Add form fields before generating a shareable link.";
+    copyBtn.disabled = true;
+    shareBtn.disabled = true;
+    return;
+  }
+
+  urlEl.classList.remove("disabled");
+  urlEl.dataset.disabled = "false";
+  copyBtn.disabled = false;
+  shareBtn.disabled = false;
+
+  if (name === "view") urlEl.textContent = location.href;
+}
+
+function updatePreviewHeader(name) {
+  var title = document.getElementById("preview-title");
+  var copy  = document.getElementById("preview-copy");
+  if (!title || !copy) return;
+
+  if (name === "build") {
+    title.textContent = "Build your form";
+    copy.textContent = "Use the left panel to add the form title and fields. Once the schema is ready, switch to Fill to enter values and generate the share link.";
+  }
+  if (name === "fill") {
+    title.textContent = "Fill & Share";
+    copy.textContent = "Enter values into the generated form fields, then copy or share the URL once your form is ready.";
+  }
+  if (name === "view") {
+    title.textContent = "Review Shared Data";
+    copy.textContent = "Open a shared link to inspect and copy submitted data. Use the actions below to edit or re-share.";
+  }
 }
 
 
@@ -361,8 +440,18 @@ async function refreshURL() {
 // --- clipboard / share ---
 
 async function copyLink() {
+  var el = document.getElementById("gen-url");
+  if (el && el.dataset.disabled === "true") {
+    showToast("Generate a link first by filling the form.");
+    return;
+  }
+
   try {
-    writeClipboard(await buildURL(buildData()), "Link copied to clipboard!");
+    if (currentMode === "view") {
+      writeClipboard(location.href, "Link copied to clipboard!");
+    } else {
+      writeClipboard(await buildURL(buildData()), "Link copied to clipboard!");
+    }
   } catch (e) {}
 }
 
@@ -380,7 +469,22 @@ function copyText() {
 }
 
 async function shareNative() {
+  var el = document.getElementById("gen-url");
+  if (el && el.dataset.disabled === "true") {
+    showToast("Generate a link first by filling the form.");
+    return;
+  }
+
   try {
+    if (currentMode === "view") {
+      if (navigator.share) {
+        navigator.share({ title: document.title, url: location.href }).catch(function () {});
+      } else {
+        writeClipboard(location.href, "Link copied to clipboard!");
+      }
+      return;
+    }
+
     var d   = buildData();
     var url = await buildURL(d);
     if (navigator.share) {
@@ -405,19 +509,21 @@ function renderView() {
   }
 
   empty.style.display = "none";
-  var html = "<div class='vwrap'><div class='vtitle'>" + esc(shared.title || "Untitled form") + "</div>";
+  var html = "<div class='vwrap'>";
+  html += "<div class='vtitle'>" + esc(shared.title || "Untitled form") + "</div>";
 
+  html += "<div class='vfields'>";
   shared.fields.forEach(function (f, i) {
     var val = (shared.values && shared.values[f.label]) || "";
-    var id  = "view-" + i + "-" + slug(f.label);
-    var inp = f.type === "textarea"
-      ? "<textarea id='" + id + "' rows='4' readonly>" + esc(val) + "</textarea>"
-      : "<input type='" + f.type + "' id='" + id + "' value='" + esc(val) + "' readonly>";
-    html += "<div class='vfield'><label class='fl' for='" + id + "'>" + esc(f.label) + "</label>" + inp + "</div>";
+    var safeVal = esc(val).replace(/\n/g, "<br>");
+    html += "<div class='vfield'>"
+         + "<div class='vlabel'>" + esc(f.label) + "</div>"
+         + "<div class='vvalue'>" + safeVal + "</div>"
+         + "</div>";
   });
+  html += "</div>";
 
-  html +=
-      "</div><div class='brow'>"
+  html += "<div class='vactions'><div class='brow'>"
     + "<button class='btn btn-w btn-s' onclick='copyText()'>"
     + "<svg width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'>"
     + "<path d='M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z'></path>"
@@ -434,8 +540,9 @@ function renderView() {
     + "<svg width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'>"
     + "<path d='M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7'></path>"
     + "<path d='M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z'></path>"
-    + "</svg>Edit &amp; Reshare</button></div>";
+    + "</svg>Edit &amp; Reshare</button></div></div>";
 
+  html += "</div>";
   loaded.innerHTML = html;
 }
 
@@ -458,9 +565,7 @@ function editShared() {
 async function boot() {
   renderBuilder();
   
-  // Initialize tabs
-  setTab(null, "fill");
-  
+  // Initialize on build mode for authors, switch to view if a shared link is opened.
   var href = location.href;
   var idx  = href.indexOf("#v2=");
   if (idx !== -1) {
@@ -471,11 +576,15 @@ async function boot() {
       document.getElementById("banner").classList.add("show");
       setTab(null, "view");
     } catch (e) {
-      setTab(null, "fill");
+      setTab(null, "build");
     }
   } else {
-    setTab(null, "fill");
+    setTab(null, "build");
   }
 }
 
-document.addEventListener("DOMContentLoaded", boot);
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", boot);
+} else {
+  boot();
+}

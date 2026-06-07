@@ -31,13 +31,36 @@
         <span>You received a shared form &mdash; filled data is shown below.</span>
       </div>
 
+      <div class="workflow-strip">
+        <div class="workflow-step" id="workflow-create" onclick="setTab(null,'build')" role="button" tabindex="0">
+          <span class="step-num">1</span>
+          <div>
+            <strong>Create</strong>
+            <span>Build custom form fields here.</span>
+          </div>
+        </div>
+        <div class="workflow-step" id="workflow-fill" onclick="setTab(null,'fill')" role="button" tabindex="0">
+          <span class="step-num">2</span>
+          <div>
+            <strong>Fill &amp; Share</strong>
+            <span>Enter values and generate a shareable link.</span>
+          </div>
+        </div>
+        <div class="workflow-step" id="workflow-review" onclick="setTab(null,'view')" role="button" tabindex="0">
+          <span class="step-num">3</span>
+          <div>
+            <strong>Review</strong>
+            <span>Open shared links to inspect submitted data.</span>
+          </div>
+        </div>
+      </div>
+
       <!-- Layout: Two-column grid for create (left) + preview/data (right) -->
       <div class="layout-grid">
         <!-- LEFT COLUMN: Form Builder -->
         <div class="builder-section">
           <div class="section-header">
             <h2 class="section-title">Create Form</h2>
-            <span class="badge">Step 1</span>
           </div>
           
           <div class="builder-card">
@@ -60,11 +83,11 @@
             </div>
 
             <div class="fg">
-              <p class="hint">Build your form step-by-step. Click "Next" to fill data and generate a shareable link.</p>
+              <p class="hint">Create your custom fields, then use the right panel to fill and share the resulting form.</p>
             </div>
 
             <button class="btn btn-p btn-w btn-next" onclick="setTab(null,'fill')">
-              Next: Fill &amp; Share
+              Continue
               <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"
                 stroke-linecap="round" stroke-linejoin="round">
                 <line x1="3" y1="8" x2="13" y2="8"></line>
@@ -76,58 +99,43 @@
 
         <!-- RIGHT COLUMN: Fill Form & Share -->
         <div class="preview-section">
-          <div class="tabs" role="tablist" style="margin-bottom: 1.5rem;">
-            <button class="tab-pill" id="tab-fill" role="tab" aria-controls="pane-fill" onclick="setTab(event,'fill')">
-              <span class="step-num">2</span>
-              Fill &amp; Share
-            </button>
-            <button class="tab-pill" id="tab-view" role="tab" aria-controls="pane-view" onclick="setTab(event,'view')">
-              <span class="step-num">3</span>
-              View
-            </button>
+          <div class="section-header">
+            <h2 class="section-title" id="preview-title">Share & Review</h2>
+          </div>
+          <p class="section-copy" id="preview-copy">Build your custom form on the left, then use this panel to fill it, share it, or review shared results.</p>
+
+          <div class="pane active" id="pane-build" role="tabpanel">
+            <div class="empty-state">
+              <div class="empty-icon">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M4 4h16v16H4z"></path>
+                  <path d="M4 10h16"></path>
+                </svg>
+              </div>
+              <h3 class="empty-title">Start by creating your form</h3>
+              <p class="empty-desc">Use the left panel to add field labels and types. Then switch to Fill to create a URL-ready version.</p>
+              <button class="btn btn-p btn-w" onclick="setTab(null,'fill')">Go to Fill</button>
+            </div>
           </div>
 
           <!-- FILL PANE -->
-          <div class="pane" id="pane-fill" role="tabpanel" aria-labelledby="tab-fill">
-            <div class="section-header">
-              <h2 class="section-title">Fill &amp; Share</h2>
+          <div class="pane" id="pane-fill" role="tabpanel">
+            <div class="share-card">
+              <div class="share-card-label">Shareable URL</div>
+              <div class="urlbox-wrap">
+                <div class="urlbox disabled" id="gen-url" onclick="copyLink()" data-disabled="true">Enter form values to generate a shareable link.</div>
+              </div>
+              <div class="share-card-actions">
+                <button id="copy-link-btn" class="btn btn-p" onclick="copyLink()" disabled>Copy Link</button>
+                <button id="share-link-btn" class="btn btn-s" onclick="shareNative()" disabled>Share</button>
+              </div>
             </div>
             <div id="fill-form"></div>
-            <hr class="divider">
-            <label class="fl">Shareable Link</label>
-            <div class="urlbox-wrap">
-              <div class="urlbox-hint">Click to copy</div>
-              <div class="urlbox" id="gen-url" onclick="copyLink()">Fill in values above to generate a link.</div>
-            </div>
             <p class="hint">All data is encoded in the URL. Nothing is stored on any server.</p>
-            <div class="brow">
-              <button class="btn btn-p" onclick="copyLink()">
-                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"
-                  stroke-linecap="round" stroke-linejoin="round">
-                  <rect x="5" y="5" width="9" height="9" rx="2" />
-                  <path d="M4 11H3a2 2 0 0 1-2-2V3a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v1" />
-                </svg>
-                Copy Link
-              </button>
-              <button class="btn btn-s" onclick="shareNative()">
-                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"
-                  stroke-linecap="round" stroke-linejoin="round">
-                  <circle cx="12" cy="4" r="2" />
-                  <circle cx="4" cy="8" r="2" />
-                  <circle cx="12" cy="12" r="2" />
-                  <line x1="5.7" y1="6.8" x2="10.3" y2="5.2" />
-                  <line x1="10.3" y1="10.8" x2="5.7" y2="9.2" />
-                </svg>
-                Share
-              </button>
-            </div>
           </div>
 
           <!-- VIEW PANE -->
-          <div class="pane" id="pane-view" role="tabpanel" aria-labelledby="tab-view">
-            <div class="section-header">
-              <h2 class="section-title">Received Data</h2>
-            </div>
+          <div class="pane" id="pane-view" role="tabpanel">
             <div id="view-loaded"></div>
             <div id="view-empty" class="empty-state">
               <div class="empty-icon">
